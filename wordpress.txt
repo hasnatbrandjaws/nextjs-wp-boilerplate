@@ -1,0 +1,85 @@
+===================================Function for Autodeployment In Functions.php in Theme File Editor===================================
+
+add_action( 'wp_insert_post', 'auto_build_request', 10, 2 );
+function auto_build_request($post_id, $post ){
+	$post_type = get_post_type( $post_id );
+	$allowed_post_types = ['post', 'page'];
+		if ( $post->post_status == 'publish' ) {
+			$data = json_encode(['force_build'=>true]);
+			$url = 'https://api.vercel.com/v1/integrations/deploy/prj_8y7VX9ztfMZdIl8drKOcWAo6i2lP/cCmxyQ80jY?buildCache=false';
+			$args = array(
+				'body' => $data,
+				'headers' => array(
+					'Content-Type' => 'application/json'
+				),
+			);  			
+			$response = wp_remote_post($url, $args);
+			if ( is_wp_error( $response ) ) {
+				$body = $response->get_error_message();
+			} else {
+				$body = wp_remote_retrieve_body( $response );
+			}
+			$content = json_encode($post_type);
+			$fp = fopen( 'error', 'a' );
+			fwrite( $fp, $content . PHP_EOL );
+			fclose($fp);
+		}
+}
+
+=====================================Function For Alt Text===================================
+
+function add_image_url_and_alt_to_acf_fields($response, $post, $request) {
+    if (function_exists('get_fields')) {
+        $acf_fields = get_fields($post->ID);
+        if ($acf_fields) {
+            foreach ($acf_fields as $key => $value) {
+                if (is_numeric($value) && wp_attachment_is_image($value)) {
+                    $image_url = wp_get_attachment_url($value);
+                    $alt_text = get_post_meta($value, '_wp_attachment_image_alt', true);
+                    $acf_fields[$key] = [
+                        'id' => $value,
+                        'url' => $image_url,
+                        'alt' => $alt_text,
+                    ];
+                }
+            }
+            $response->data['acf'] = $acf_fields;
+        }
+    }
+    return $response;
+}
+
+
+// Hook into the REST API to modify the response for posts, pages, and other types
+function add_acf_fields_to_rest_api() {
+    $post_types = ['post', 'page'];
+    $custom_post_types = get_post_types(['public' => true, '_builtin' => false]);
+    $post_types = array_merge($post_types, $custom_post_types);
+
+    foreach ($post_types as $post_type) {
+        add_filter("rest_prepare_{$post_type}", 'add_image_url_and_alt_to_acf_fields', 10, 3);
+    }
+}
+add_action('rest_api_init', 'add_acf_fields_to_rest_api');
+
+
+=====================================Function For Fimg_URL===================================
+
+add_action('rest_api_init', 'register_rest_images' );
+function register_rest_images(){
+    register_rest_field( array('post', 'project', 'collaboration'),
+        'fimg_url',
+        array(
+            'get_callback'    => 'get_rest_featured_image',
+            'update_callback' => null,
+            'schema'          => null,
+        )
+    );
+}
+function get_rest_featured_image( $object, $field_name, $request ) {
+    if( $object['featured_media'] ){
+        $img = wp_get_attachment_image_src( $object['featured_media'], 'app-thumb' );
+        return $img[0];
+    }
+    return false;
+}
