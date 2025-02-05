@@ -6,6 +6,7 @@ const projects = ({projectsData, allProjectsData}) => {
 };
 
 // Get Static Props
+// New Structure
 export async function getStaticProps() {
   let projectsData = {};
   let allProjectsData = [];
